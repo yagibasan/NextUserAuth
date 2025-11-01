@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
+import multer from "multer";
 import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema } from "@shared/schema";
 
 const BACK4APP_APP_ID = process.env.BACK4APP_APPLICATION_ID;
@@ -72,6 +73,21 @@ async function requireAdmin(req: any, res: any, next: any) {
     res.status(401).json({ error: error.message });
   }
 }
+
+// Configure multer for file uploads (memory storage)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const isValid = allowedTypes.test(file.mimetype);
+    if (isValid) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (jpeg, jpg, png, gif) are allowed'));
+    }
+  }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Sign Up
@@ -173,6 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: result.email,
         role: result.role || 'user',
         emailVerified: result.emailVerified || false,
+        profilePicture: result.profilePicture,
         createdAt: result.createdAt,
         updatedAt: result.updatedAt,
       };
@@ -269,6 +286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: user.email,
         role: user.role || 'user',
         emailVerified: user.emailVerified || false,
+        profilePicture: user.profilePicture,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }));
@@ -282,13 +300,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete User by ID (Admin only)
   app.delete("/api/users/:userId", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const { userId } = req.params;
+      const { userId} = req.params;
 
       await back4AppRequest(`/users/${userId}`, {
         method: "DELETE",
       }, req.sessionToken);
 
       res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Upload Profile Picture
+  app.post("/api/auth/profile-picture", requireAuth, upload.single('profilePicture'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Step 1: Upload file to Back4App
+      const fileResponse = await fetch(
+        `${BACK4APP_BASE_URL}/files/${req.file.originalname}`,
+        {
+          method: "POST",
+          headers: {
+            "X-Parse-Application-Id": BACK4APP_APP_ID!,
+            "X-Parse-REST-API-Key": BACK4APP_REST_KEY!,
+            "Content-Type": req.file.mimetype,
+          },
+          body: req.file.buffer,
+        }
+      );
+
+      const fileData = await fileResponse.json();
+
+      if (!fileResponse.ok) {
+        throw new Error(fileData.error || "File upload failed");
+      }
+
+      // Step 2: Update user profile with file reference
+      const updateResult = await back4AppRequest("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          profilePicture: {
+            __type: "File",
+            name: fileData.name,
+            url: fileData.url,
+          }
+        }),
+      }, req.sessionToken);
+
+      // Fetch updated user data
+      const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+
+      const user = {
+        objectId: updatedUser.objectId,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role || 'user',
+        emailVerified: updatedUser.emailVerified || false,
+        profilePicture: updatedUser.profilePicture,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      };
+
+      res.json(user);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Delete Profile Picture
+  app.delete("/api/auth/profile-picture", requireAuth, async (req: any, res) => {
+    try {
+      await back4AppRequest("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          profilePicture: null
+        }),
+      }, req.sessionToken);
+
+      // Fetch updated user data
+      const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+
+      const user = {
+        objectId: updatedUser.objectId,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role || 'user',
+        emailVerified: updatedUser.emailVerified || false,
+        profilePicture: updatedUser.profilePicture,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      };
+
+      res.json(user);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

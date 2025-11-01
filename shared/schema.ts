@@ -8,6 +8,10 @@ export const userSchema = z.object({
   emailVerified: z.boolean().optional(),
   sessionToken: z.string().optional(),
   role: z.enum(['user', 'admin']).default('user'),
+  profilePicture: z.object({
+    name: z.string(),
+    url: z.string(),
+  }).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

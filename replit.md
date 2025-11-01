@@ -15,8 +15,9 @@ Modern authentication platform built with React, Express, and Back4App (Parse Se
 
 ### User Management
 - **Profile Management**: View, update, and delete user profiles
+- **Profile Pictures**: Upload, preview, and delete profile pictures (5MB max, image files only)
 - **Admin Dashboard**: Admin-only user management interface
-- **User List**: View all users with search functionality
+- **User List**: View all users with search functionality and profile pictures
 - **User Deletion**: Admin can delete user accounts
 
 ### UI/UX
@@ -62,6 +63,8 @@ Required environment variables:
 - `PUT /api/auth/me` - Update current user profile (cannot change role)
 - `DELETE /api/auth/me` - Delete current user account
 - `POST /api/auth/reset-password` - Request password reset email
+- `POST /api/auth/profile-picture` - Upload profile picture (multipart/form-data)
+- `DELETE /api/auth/profile-picture` - Delete profile picture
 
 ### User Management (Admin Only)
 - `GET /api/users` - Get all users
@@ -173,12 +176,22 @@ To create an admin user:
 ### Theme System
 The theme toggle uses localStorage persistence and applies classes to the document root. The dark mode implementation follows Tailwind's class-based strategy.
 
+## Recent Updates (Nov 2024)
+
+### Profile Picture Upload
+- Users can upload profile pictures with file validation (images only, 5MB max)
+- Preview functionality before upload confirmation
+- Profile pictures display in sidebar, profile page, and admin user management
+- Secure file upload via Back4App File API
+- Delete functionality for removing profile pictures
+
 ## Future Enhancements
 
-- Two-factor authentication
-- Social login (OAuth)
-- User profile pictures
+- Image cropping tool for profile pictures
+- Advanced role management with multiple roles and permissions
+- User activity logs and session history tracking
+- Two-factor authentication (2FA) with TOTP
+- Social login (OAuth) with Google and GitHub
 - Email verification confirmation endpoint
 - Password strength requirements
 - Account lockout after failed attempts
-- Activity logging and audit trail

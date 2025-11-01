@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, UserCog, Trash2, Save } from "lucide-react";
+import { Eye, EyeOff, UserCog, Trash2, Save, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -28,16 +28,26 @@ interface ProfileProps {
     email: string;
     role: string;
     emailVerified?: boolean;
+    profilePicture?: {
+      name: string;
+      url: string;
+    };
     createdAt: string;
   };
   onUpdate: (data: UpdateUserInput) => Promise<void>;
   onDelete: () => Promise<void>;
+  onProfilePictureUpload: (file: File) => Promise<void>;
+  onProfilePictureDelete: () => Promise<void>;
   isLoading?: boolean;
 }
 
-export default function Profile({ user, onUpdate, onDelete, isLoading = false }: ProfileProps) {
+export default function Profile({ user, onUpdate, onDelete, onProfilePictureUpload, onProfilePictureDelete, isLoading = false }: ProfileProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -56,6 +66,64 @@ export default function Profile({ user, onUpdate, onDelete, isLoading = false }:
     setIsEditing(false);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewImage(reader.result as string);
+      setSelectedFile(file);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!selectedFile) return;
+
+    setUploadingPicture(true);
+    try {
+      await onProfilePictureUpload(selectedFile);
+      setPreviewImage(null);
+      setSelectedFile(null);
+    } finally {
+      setUploadingPicture(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCancelUpload = () => {
+    setPreviewImage(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeletePicture = async () => {
+    setUploadingPicture(true);
+    try {
+      await onProfilePictureDelete();
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -67,12 +135,78 @@ export default function Profile({ user, onUpdate, onDelete, isLoading = false }:
 
       {/* Profile Header */}
       <Card className="p-6">
-        <div className="flex items-start gap-6">
-          <Avatar className="w-20 h-20">
-            <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
-              {user?.username.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+        <div className="flex flex-col md:flex-row items-start gap-6">
+          <div className="relative">
+            {previewImage ? (
+              <div className="space-y-4">
+                <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-border">
+                  <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleConfirmUpload}
+                    disabled={uploadingPicture}
+                    data-testid="button-confirm-upload"
+                  >
+                    {uploadingPicture ? 'Uploading...' : 'Confirm'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelUpload}
+                    disabled={uploadingPicture}
+                    data-testid="button-cancel-upload"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Avatar className="w-32 h-32">
+                  {user?.profilePicture?.url ? (
+                    <AvatarImage src={user.profilePicture.url} alt={user.username} />
+                  ) : null}
+                  <AvatarFallback className="bg-primary text-primary-foreground text-4xl font-bold">
+                    {user?.username.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="mt-4 flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    data-testid="input-profile-picture"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPicture}
+                    data-testid="button-upload-picture"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {uploadingPicture ? 'Uploading...' : 'Upload'}
+                  </Button>
+                  {user?.profilePicture && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeletePicture}
+                      disabled={uploadingPicture}
+                      data-testid="button-delete-picture"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h2 className="text-2xl font-semibold">{user?.username}</h2>

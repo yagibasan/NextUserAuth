@@ -12,7 +12,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 interface AppSidebarProps {
@@ -20,6 +20,10 @@ interface AppSidebarProps {
     username: string;
     email: string;
     role: string;
+    profilePicture?: {
+      name: string;
+      url: string;
+    };
   };
   onLogout: () => void;
 }
@@ -73,6 +77,9 @@ export function AppSidebar({ user, onLogout }: AppSidebarProps) {
             <div className="px-4 py-3 mb-2">
               <div className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
+                  {user.profilePicture?.url ? (
+                    <AvatarImage src={user.profilePicture.url} alt={user.username} />
+                  ) : null}
                   <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                     {user.username.substring(0, 2).toUpperCase()}
                   </AvatarFallback>

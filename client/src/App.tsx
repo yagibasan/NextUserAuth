@@ -300,6 +300,70 @@ function Router() {
     }
   };
 
+  const handleProfilePictureUpload = async (file: File) => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const formData = new FormData();
+      formData.append('profilePicture', file);
+
+      const response = await fetch('/api/auth/profile-picture', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      setUser(result);
+      toast({
+        title: "Profile picture updated",
+        description: "Your profile picture has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleProfilePictureDelete = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch('/api/auth/profile-picture', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Delete failed');
+      }
+
+      setUser(result);
+      toast({
+        title: "Profile picture removed",
+        description: "Your profile picture has been removed successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: error.message,
+      });
+    }
+  };
+
   const publicRoutes = (
     <Switch>
       <Route path="/" component={Landing} />
@@ -359,6 +423,8 @@ function Router() {
                   user={user || undefined}
                   onUpdate={handleUpdateProfile}
                   onDelete={handleDeleteAccount}
+                  onProfilePictureUpload={handleProfilePictureUpload}
+                  onProfilePictureDelete={handleProfilePictureDelete}
                   isLoading={isLoading}
                 />
               </Route>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -141,6 +141,9 @@ export default function UserManagement({ users, onDeleteUser, isLoading = false 
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
+                          {user.profilePicture?.url ? (
+                            <AvatarImage src={user.profilePicture.url} alt={user.username} />
+                          ) : null}
                           <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                             {user.username.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -212,6 +215,9 @@ export default function UserManagement({ users, onDeleteUser, isLoading = false 
               <Card key={user.objectId} className="p-6" data-testid={`card-user-${user.objectId}`}>
                 <div className="flex items-start gap-4 mb-4">
                   <Avatar className="w-12 h-12">
+                    {user.profilePicture?.url ? (
+                      <AvatarImage src={user.profilePicture.url} alt={user.username} />
+                    ) : null}
                     <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
                       {user.username.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
