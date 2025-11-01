@@ -71,10 +71,8 @@ export default function VerifyEmail({
             )}
 
             <div className="mt-8">
-              <Link href="/login">
-                <a className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-back-to-login">
-                  ← Back to login
-                </a>
+              <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-back-to-login">
+                ← Back to login
               </Link>
             </div>
           </>

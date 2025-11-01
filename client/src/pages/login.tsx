@@ -64,10 +64,8 @@ export default function Login({ onLogin, isLoading = false }: LoginProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password">
-                <a className="text-sm text-primary hover:underline" data-testid="link-forgot-password">
-                  Forgot password?
-                </a>
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline" data-testid="link-forgot-password">
+                Forgot password?
               </Link>
             </div>
             <div className="relative">
@@ -114,19 +112,15 @@ export default function Login({ onLogin, isLoading = false }: LoginProps) {
         <div className="mt-6 text-center">
           <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link href="/signup">
-              <a className="text-primary font-medium hover:underline" data-testid="link-signup">
-                Sign up
-              </a>
+            <Link href="/signup" className="text-primary font-medium hover:underline" data-testid="link-signup">
+              Sign up
             </Link>
           </p>
         </div>
 
         <div className="mt-6 text-center">
-          <Link href="/">
-            <a className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-home">
-              ← Back to home
-            </a>
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-home">
+            ← Back to home
           </Link>
         </div>
       </Card>

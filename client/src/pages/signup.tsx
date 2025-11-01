@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -22,7 +21,6 @@ export default function Signup({ onSignup, isLoading = false }: SignupProps) {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
@@ -119,27 +117,6 @@ export default function Signup({ onSignup, isLoading = false }: SignupProps) {
             </p>
           </div>
 
-          <div>
-            <Label htmlFor="role">Role</Label>
-            <Select 
-              defaultValue="user" 
-              onValueChange={(value) => setValue("role", value as "user" | "admin")}
-            >
-              <SelectTrigger className="h-12 mt-2" data-testid="select-role">
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">User</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.role && (
-              <p className="text-sm text-destructive mt-1" data-testid="error-role">
-                {errors.role.message}
-              </p>
-            )}
-          </div>
-
           <Button
             type="submit"
             className="w-full h-12 mt-8"
@@ -153,19 +130,15 @@ export default function Signup({ onSignup, isLoading = false }: SignupProps) {
         <div className="mt-6 text-center">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login">
-              <a className="text-primary font-medium hover:underline" data-testid="link-login">
-                Sign in
-              </a>
+            <Link href="/login" className="text-primary font-medium hover:underline" data-testid="link-login">
+              Sign in
             </Link>
           </p>
         </div>
 
         <div className="mt-6 text-center">
-          <Link href="/">
-            <a className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-home">
-              ← Back to home
-            </a>
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground" data-testid="link-home">
+            ← Back to home
           </Link>
         </div>
       </Card>

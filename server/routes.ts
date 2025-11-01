@@ -72,16 +72,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = signupSchema.parse(req.body);
       
+      // Security: Always set new users to 'user' role by default
+      // Admin role should only be assigned through a separate admin interface
+      const signupData = {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        role: 'user', // Force user role for all new signups
+      };
+      
       const result = await back4AppRequest("/users", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(signupData),
       });
 
       const user = {
         objectId: result.objectId,
-        username: data.username,
-        email: data.email,
-        role: data.role,
+        username: signupData.username,
+        email: signupData.email,
+        role: 'user',
         emailVerified: false,
         createdAt: result.createdAt,
         updatedAt: result.createdAt,
@@ -172,9 +181,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = updateUserSchema.parse(req.body);
 
+      // Security: Prevent users from changing their own role
+      // Remove role from update data to prevent privilege escalation
+      const { role, ...safeData } = data;
+
       // Remove undefined values
       const updateData = Object.fromEntries(
-        Object.entries(data).filter(([_, v]) => v !== undefined)
+        Object.entries(safeData).filter(([_, v]) => v !== undefined)
       );
 
       const result = await back4AppRequest("/users/me", {
