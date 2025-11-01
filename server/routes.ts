@@ -32,6 +32,13 @@ async function back4AppRequest(
   const data = await response.json();
 
   if (!response.ok) {
+    console.error(`Back4App API Error (${endpoint}):`, {
+      status: response.status,
+      statusText: response.statusText,
+      error: data.error,
+      code: data.code,
+      fullResponse: data
+    });
     throw new Error(data.error || "Back4App request failed");
   }
 
