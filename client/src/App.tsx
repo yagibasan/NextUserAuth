@@ -18,6 +18,8 @@ import Dashboard from "@/pages/dashboard";
 import Profile from "@/pages/profile";
 import UserManagement from "@/pages/user-management";
 import { useToast } from "@/hooks/use-toast";
+import { AuthService } from "@/services/auth.service";
+import { UserService } from "@/services/user.service";
 import type { User, LoginInput, SignupInput, PasswordResetRequest, UpdateUserInput } from "@shared/schema";
 
 function Router() {
@@ -34,18 +36,8 @@ function Router() {
       const sessionToken = localStorage.getItem('sessionToken');
       if (sessionToken) {
         try {
-          const response = await fetch('/api/auth/me', {
-            headers: {
-              'Authorization': `Bearer ${sessionToken}`,
-            },
-          });
-          
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          } else {
-            localStorage.removeItem('sessionToken');
-          }
+          const userData = await AuthService.becomeUser(sessionToken);
+          setUser(userData);
         } catch (error) {
           console.error('Session check failed:', error);
           localStorage.removeItem('sessionToken');
@@ -61,17 +53,8 @@ function Router() {
     const loadUsers = async () => {
       if (user?.role === 'admin') {
         try {
-          const sessionToken = localStorage.getItem('sessionToken');
-          const response = await fetch('/api/users', {
-            headers: {
-              'Authorization': `Bearer ${sessionToken}`,
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setAllUsers(data.results || []);
-          }
+          const users = await UserService.getAllUsers();
+          setAllUsers(users);
         } catch (error) {
           console.error('Failed to load users:', error);
         }
@@ -84,18 +67,7 @@ function Router() {
   const handleLogin = async (data: LoginInput) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Login failed');
-      }
-
+      const result = await AuthService.login(data);
       localStorage.setItem('sessionToken', result.sessionToken);
       setUser(result.user);
       
@@ -119,18 +91,7 @@ function Router() {
   const handleSignup = async (data: SignupInput) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Signup failed');
-      }
-
+      const result = await AuthService.signup(data);
       localStorage.setItem('sessionToken', result.sessionToken);
       setUser(result.user);
 
@@ -153,13 +114,7 @@ function Router() {
 
   const handleLogout = async () => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      });
+      await AuthService.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -176,17 +131,7 @@ function Router() {
   const handlePasswordReset = async (data: PasswordResetRequest) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Password reset request failed');
-      }
-
+      await AuthService.requestPasswordReset(data.email);
       setEmailSent(true);
       toast({
         title: "Email sent",
@@ -206,23 +151,8 @@ function Router() {
   const handleUpdateProfile = async (data: UpdateUserInput) => {
     setIsLoading(true);
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch('/api/auth/me', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Update failed');
-      }
-
-      setUser(result);
+      const updatedUser = await AuthService.updateProfile(data);
+      setUser(updatedUser);
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
@@ -240,18 +170,7 @@ function Router() {
 
   const handleDeleteAccount = async () => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch('/api/auth/me', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Delete failed');
-      }
-
+      await AuthService.deleteAccount();
       localStorage.removeItem('sessionToken');
       setUser(null);
       
@@ -272,18 +191,8 @@ function Router() {
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Delete failed');
-      }
-
+      await UserService.deleteUser(userId);
+      
       // Refresh users list
       setAllUsers(allUsers.filter(u => u.objectId !== userId));
 
@@ -302,23 +211,8 @@ function Router() {
 
   const handleUpdateRole = async (userId: string, role: 'user' | 'admin') => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch(`/api/users/${userId}/role`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role }),
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Role update failed');
-      }
-
-      const updatedUser = await response.json();
-
+      const updatedUser = await UserService.updateUserRole(userId, role);
+      
       // Update users list
       setAllUsers(allUsers.map(u => u.objectId === userId ? updatedUser : u));
       
@@ -337,25 +231,8 @@ function Router() {
 
   const handleProfilePictureUpload = async (file: File) => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const formData = new FormData();
-      formData.append('profilePicture', file);
-
-      const response = await fetch('/api/auth/profile-picture', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
-      }
-
-      setUser(result);
+      const updatedUser = await AuthService.uploadProfilePicture(file);
+      setUser(updatedUser);
       toast({
         title: "Profile picture updated",
         description: "Your profile picture has been updated successfully.",
@@ -371,21 +248,8 @@ function Router() {
 
   const handleProfilePictureDelete = async () => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
-      const response = await fetch('/api/auth/profile-picture', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${sessionToken}`,
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Delete failed');
-      }
-
-      setUser(result);
+      const updatedUser = await AuthService.deleteProfilePicture();
+      setUser(updatedUser);
       toast({
         title: "Profile picture removed",
         description: "Your profile picture has been removed successfully.",
