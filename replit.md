@@ -46,7 +46,7 @@ Modern authentication platform built with React, Express, and Back4App (Parse Se
 ### Backend
 - **Express**: Node.js web framework
 - **TypeScript**: Type-safe backend
-- **Back4App REST API**: Parse Server integration
+- **Parse JavaScript SDK**: Direct Parse Server integration for cleaner, more maintainable code
 - **Environment Variables**: Secure configuration
 
 ## Environment Variables
@@ -54,6 +54,7 @@ Modern authentication platform built with React, Express, and Back4App (Parse Se
 Required environment variables:
 - `BACK4APP_APPLICATION_ID`: Your Back4App Application ID
 - `BACK4APP_REST_API_KEY`: Your Back4App REST API Key
+- `BACK4APP_MASTER_KEY`: Master key for admin operations (role management, user deletion)
 
 ## API Endpoints
 
@@ -137,13 +138,22 @@ The application follows the design guidelines in `design_guidelines.md` which sp
 
 ## Back4App Integration
 
-The application integrates with Back4App (Parse Server) for:
-- User authentication and session management
-- User data storage and retrieval
+The application integrates with Back4App (Parse Server) using the Parse JavaScript SDK for:
+- User authentication and session management with `Parse.User`
+- User data storage and retrieval with `Parse.Query`
+- File uploads with `Parse.File` for profile pictures
 - Email verification workflow
-- Password reset functionality
+- Password reset functionality with `Parse.User.requestPasswordReset()`
+- Activity logging with `Parse.Object`
 
-All Back4App API calls are centralized in the backend routes with proper error handling and data transformation.
+### Parse SDK Benefits
+- **Cleaner Code**: Object-oriented API instead of manual HTTP requests
+- **Type Safety**: Better TypeScript integration with Parse types
+- **Built-in Features**: Automatic handling of Parse data types, sessions, and files
+- **Less Boilerplate**: Simplified CRUD operations with Parse.Query
+- **Better Error Handling**: Parse SDK provides consistent error messages
+
+All Parse SDK operations are centralized in the backend routes with proper error handling and master key usage for admin operations.
 
 ## User Roles
 
@@ -181,11 +191,18 @@ The theme toggle uses localStorage persistence and applies classes to the docume
 
 ## Recent Updates (Nov 2024)
 
+### Parse SDK Migration
+- **Major Architecture Change**: Migrated entire backend from REST API to Parse JavaScript SDK
+- **Cleaner Codebase**: Replaced manual HTTP requests with Parse SDK methods
+- **Better Maintainability**: Object-oriented API for user management, file uploads, and queries
+- **Improved Error Handling**: Consistent error messages from Parse SDK
+- **Type Safety**: Better TypeScript integration with Parse types
+
 ### Profile Picture Upload
 - Users can upload profile pictures with file validation (images only, 5MB max)
 - Preview functionality before upload confirmation
 - Profile pictures display in sidebar, profile page, and admin user management
-- Secure file upload via Back4App File API
+- Secure file upload via `Parse.File` API
 - Delete functionality for removing profile pictures
 
 ### Advanced Role Management
@@ -193,7 +210,7 @@ The theme toggle uses localStorage persistence and applies classes to the docume
 - Admin UI for changing user roles via dropdown in user management table
 - Security: Admins cannot change their own role
 - Role-permission mapping system for future extensibility
-- Server-side role update endpoint with validation
+- Server-side role update endpoint with validation using master key
 
 ## Future Enhancements
 

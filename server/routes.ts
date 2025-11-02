@@ -2,79 +2,67 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import multer from "multer";
+import Parse from "parse/node";
 import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema, updateRoleSchema, type ActivityType } from "@shared/schema";
 
-const BACK4APP_APP_ID = process.env.BACK4APP_APPLICATION_ID;
-const BACK4APP_REST_KEY = process.env.BACK4APP_REST_API_KEY;
-const BACK4APP_BASE_URL = "https://parseapi.back4app.com";
+// Initialize Parse SDK
+Parse.initialize(
+  process.env.BACK4APP_APPLICATION_ID!,
+  process.env.BACK4APP_REST_API_KEY!, // This is used as JavaScript Key
+  process.env.BACK4APP_MASTER_KEY
+);
+Parse.serverURL = "https://parseapi.back4app.com";
 
-// Helper function to make Back4App API requests
-async function back4AppRequest(
-  endpoint: string,
-  options: RequestInit = {},
-  sessionToken?: string
-) {
-  const headers: Record<string, string> = {
-    "X-Parse-Application-Id": BACK4APP_APP_ID!,
-    "X-Parse-REST-API-Key": BACK4APP_REST_KEY!,
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (sessionToken) {
-    headers["X-Parse-Session-Token"] = sessionToken;
-  }
-
-  const response = await fetch(`${BACK4APP_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error(`Back4App API Error (${endpoint}):`, {
-      status: response.status,
-      statusText: response.statusText,
-      error: data.error,
-      code: data.code,
-      fullResponse: data
-    });
-    throw new Error(data.error || "Back4App request failed");
-  }
-
-  return data;
-}
+// Enable Parse Server environment (allows server-side operations)
+(Parse as any).CoreManager.set('SERVER_AUTH_TYPE', 'api');
 
 // Middleware to verify authentication
-function requireAuth(req: any, res: any, next: any) {
+async function requireAuth(req: any, res: any, next: any) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  const sessionToken = authHeader.substring(7);
-  req.sessionToken = sessionToken;
-  next();
-}
-
-// Middleware to verify admin role
-async function requireAdmin(req: any, res: any, next: any) {
   try {
-    const user = await back4AppRequest("/users/me", {}, req.sessionToken);
+    const sessionToken = authHeader.substring(7);
+    const query = new Parse.Query(Parse.Session);
+    query.equalTo('sessionToken', sessionToken);
+    query.include('user');
+    const session = await query.first({ useMasterKey: true });
     
-    if (user.role !== 'admin') {
-      return res.status(403).json({ error: "Forbidden: Admin access required" });
+    if (!session) {
+      return res.status(401).json({ error: "Invalid session" });
     }
 
-    req.user = user;
+    req.sessionToken = sessionToken;
+    req.currentUser = session.get('user');
     next();
   } catch (error: any) {
     res.status(401).json({ error: error.message });
   }
 }
 
-// Helper function to log user activity
+// Middleware to verify admin role
+async function requireAdmin(req: any, res: any, next: any) {
+  try {
+    if (!req.currentUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    
+    await req.currentUser.fetch({ useMasterKey: true });
+    
+    if (req.currentUser.get('role') !== 'admin') {
+      return res.status(403).json({ error: "Forbidden: Admin access required" });
+    }
+
+    req.user = req.currentUser.toJSON();
+    next();
+  } catch (error: any) {
+    res.status(401).json({ error: error.message });
+  }
+}
+
+// Helper function to log user activity (using Parse SDK)
 async function logActivity(
   userId: string,
   username: string,
@@ -84,17 +72,15 @@ async function logActivity(
   metadata?: Record<string, any>
 ) {
   try {
-    await back4AppRequest("/classes/ActivityLog", {
-      method: "POST",
-      body: JSON.stringify({
-        userId,
-        username,
-        activityType,
-        ipAddress,
-        userAgent,
-        metadata,
-      }),
-    });
+    const ActivityLog = Parse.Object.extend("ActivityLog");
+    const log = new ActivityLog();
+    log.set("userId", userId);
+    log.set("username", username);
+    log.set("activityType", activityType);
+    if (ipAddress) log.set("ipAddress", ipAddress);
+    if (userAgent) log.set("userAgent", userAgent);
+    if (metadata) log.set("metadata", metadata);
+    await log.save(null, { useMasterKey: true });
   } catch (error) {
     // Log activity errors but don't fail the main request
     console.error("Failed to log activity:", error);
@@ -122,33 +108,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = signupSchema.parse(req.body);
       
-      // Security: Always set new users to 'user' role by default
-      // Admin role should only be assigned through a separate admin interface
-      const signupData = {
-        username: data.username,
-        email: data.email,
-        password: data.password,
-        role: 'user', // Force user role for all new signups
-      };
+      // Create new Parse.User with master key (required for server-side signup)
+      const parseUser = new Parse.User();
+      parseUser.set('username', data.username);
+      parseUser.set('email', data.email);
+      parseUser.set('password', data.password);
+      parseUser.set('role', 'user'); // Force user role for all new signups
       
-      const result = await back4AppRequest("/users", {
-        method: "POST",
-        body: JSON.stringify(signupData),
-      });
+      // Sign up the user with master key
+      await parseUser.signUp(null, { useMasterKey: true });
 
       const user = {
-        objectId: result.objectId,
-        username: signupData.username,
-        email: signupData.email,
-        role: 'user',
-        emailVerified: false,
-        createdAt: result.createdAt,
-        updatedAt: result.createdAt,
+        objectId: parseUser.id,
+        username: parseUser.get('username'),
+        email: parseUser.get('email'),
+        role: parseUser.get('role') || 'user',
+        emailVerified: parseUser.get('emailVerified') || false,
+        createdAt: parseUser.get('createdAt').toISOString(),
+        updatedAt: parseUser.get('updatedAt').toISOString(),
       };
 
       res.status(201).json({
         user,
-        sessionToken: result.sessionToken,
+        sessionToken: parseUser.getSessionToken(),
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -164,24 +146,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = loginSchema.parse(req.body);
 
-      const result = await back4AppRequest("/login", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      // Log in using Parse SDK
+      const parseUser = await Parse.User.logIn(data.username, data.password);
 
       const user = {
-        objectId: result.objectId,
-        username: result.username,
-        email: result.email,
-        role: result.role || 'user',
-        emailVerified: result.emailVerified || false,
-        createdAt: result.createdAt,
-        updatedAt: result.updatedAt,
+        objectId: parseUser.id,
+        username: parseUser.get('username'),
+        email: parseUser.get('email'),
+        role: parseUser.get('role') || 'user',
+        emailVerified: parseUser.get('emailVerified') || false,
+        profilePicture: parseUser.get('profilePicture'),
+        createdAt: parseUser.get('createdAt').toISOString(),
+        updatedAt: parseUser.get('updatedAt').toISOString(),
       };
 
       res.json({
         user,
-        sessionToken: result.sessionToken,
+        sessionToken: parseUser.getSessionToken(),
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -195,10 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Logout
   app.post("/api/auth/logout", requireAuth, async (req: any, res) => {
     try {
-      await back4AppRequest("/logout", {
-        method: "POST",
-      }, req.sessionToken);
-
+      await Parse.User.logOut();
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -208,17 +186,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Current User
   app.get("/api/auth/me", requireAuth, async (req: any, res) => {
     try {
-      const result = await back4AppRequest("/users/me", {}, req.sessionToken);
+      await req.currentUser.fetch({ useMasterKey: true });
 
       const user = {
-        objectId: result.objectId,
-        username: result.username,
-        email: result.email,
-        role: result.role || 'user',
-        emailVerified: result.emailVerified || false,
-        profilePicture: result.profilePicture,
-        createdAt: result.createdAt,
-        updatedAt: result.updatedAt,
+        objectId: req.currentUser.id,
+        username: req.currentUser.get('username'),
+        email: req.currentUser.get('email'),
+        role: req.currentUser.get('role') || 'user',
+        emailVerified: req.currentUser.get('emailVerified') || false,
+        profilePicture: req.currentUser.get('profilePicture'),
+        createdAt: req.currentUser.get('createdAt').toISOString(),
+        updatedAt: req.currentUser.get('updatedAt').toISOString(),
       };
 
       res.json(user);
@@ -233,30 +211,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = updateUserSchema.parse(req.body);
 
       // Security: Prevent users from changing their own role
-      // Remove role from update data to prevent privilege escalation
       const { role, ...safeData } = data;
 
-      // Remove undefined values
-      const updateData = Object.fromEntries(
-        Object.entries(safeData).filter(([_, v]) => v !== undefined)
-      );
+      // Update user with Parse SDK
+      if (safeData.username) req.currentUser.set('username', safeData.username);
+      if (safeData.email) req.currentUser.set('email', safeData.email);
+      if (safeData.password) req.currentUser.set('password', safeData.password);
 
-      const result = await back4AppRequest("/users/me", {
-        method: "PUT",
-        body: JSON.stringify(updateData),
-      }, req.sessionToken);
-
-      // Fetch updated user data
-      const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+      await req.currentUser.save(null, { useMasterKey: true });
 
       const user = {
-        objectId: updatedUser.objectId,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        role: updatedUser.role || 'user',
-        emailVerified: updatedUser.emailVerified || false,
-        createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt,
+        objectId: req.currentUser.id,
+        username: req.currentUser.get('username'),
+        email: req.currentUser.get('email'),
+        role: req.currentUser.get('role') || 'user',
+        emailVerified: req.currentUser.get('emailVerified') || false,
+        profilePicture: req.currentUser.get('profilePicture'),
+        createdAt: req.currentUser.get('createdAt').toISOString(),
+        updatedAt: req.currentUser.get('updatedAt').toISOString(),
       };
 
       res.json(user);
@@ -272,10 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete Current User Account
   app.delete("/api/auth/me", requireAuth, async (req: any, res) => {
     try {
-      await back4AppRequest("/users/me", {
-        method: "DELETE",
-      }, req.sessionToken);
-
+      await req.currentUser.destroy({ useMasterKey: true });
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -286,12 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
       const data = passwordResetRequestSchema.parse(req.body);
-
-      await back4AppRequest("/requestPasswordReset", {
-        method: "POST",
-        body: JSON.stringify({ email: data.email }),
-      });
-
+      await Parse.User.requestPasswordReset(data.email);
       res.json({ success: true });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -305,17 +269,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get All Users (Admin only)
   app.get("/api/users", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const result = await back4AppRequest("/users", {}, req.sessionToken);
+      const query = new Parse.Query(Parse.User);
+      const results = await query.find({ useMasterKey: true });
 
-      const users = result.results.map((user: any) => ({
-        objectId: user.objectId,
-        username: user.username,
-        email: user.email,
-        role: user.role || 'user',
-        emailVerified: user.emailVerified || false,
-        profilePicture: user.profilePicture,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+      const users = results.map((user) => ({
+        objectId: user.id,
+        username: user.get('username'),
+        email: user.get('email'),
+        role: user.get('role') || 'user',
+        emailVerified: user.get('emailVerified') || false,
+        profilePicture: user.get('profilePicture'),
+        createdAt: user.get('createdAt').toISOString(),
+        updatedAt: user.get('updatedAt').toISOString(),
       }));
 
       res.json({ results: users });
@@ -327,12 +292,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete User by ID (Admin only)
   app.delete("/api/users/:userId", requireAuth, requireAdmin, async (req: any, res) => {
     try {
-      const { userId} = req.params;
-
-      await back4AppRequest(`/users/${userId}`, {
-        method: "DELETE",
-      }, req.sessionToken);
-
+      const { userId } = req.params;
+      const query = new Parse.Query(Parse.User);
+      const user = await query.get(userId, { useMasterKey: true });
+      await user.destroy({ useMasterKey: true });
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -346,50 +309,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      // Step 1: Upload file to Back4App
-      const fileResponse = await fetch(
-        `${BACK4APP_BASE_URL}/files/${req.file.originalname}`,
-        {
-          method: "POST",
-          headers: {
-            "X-Parse-Application-Id": BACK4APP_APP_ID!,
-            "X-Parse-REST-API-Key": BACK4APP_REST_KEY!,
-            "Content-Type": req.file.mimetype,
-          },
-          body: req.file.buffer,
-        }
-      );
+      // Create Parse.File from buffer
+      const parseFile = new Parse.File(req.file.originalname, Array.from(req.file.buffer), req.file.mimetype);
+      await parseFile.save();
 
-      const fileData = await fileResponse.json();
-
-      if (!fileResponse.ok) {
-        throw new Error(fileData.error || "File upload failed");
-      }
-
-      // Step 2: Update user profile with file reference
-      const updateResult = await back4AppRequest("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({
-          profilePicture: {
-            __type: "File",
-            name: fileData.name,
-            url: fileData.url,
-          }
-        }),
-      }, req.sessionToken);
-
-      // Fetch updated user data
-      const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+      // Update user profile with file reference
+      req.currentUser.set('profilePicture', {
+        name: parseFile.name(),
+        url: parseFile.url(),
+      });
+      await req.currentUser.save(null, { useMasterKey: true });
 
       const user = {
-        objectId: updatedUser.objectId,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        role: updatedUser.role || 'user',
-        emailVerified: updatedUser.emailVerified || false,
-        profilePicture: updatedUser.profilePicture,
-        createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt,
+        objectId: req.currentUser.id,
+        username: req.currentUser.get('username'),
+        email: req.currentUser.get('email'),
+        role: req.currentUser.get('role') || 'user',
+        emailVerified: req.currentUser.get('emailVerified') || false,
+        profilePicture: req.currentUser.get('profilePicture'),
+        createdAt: req.currentUser.get('createdAt').toISOString(),
+        updatedAt: req.currentUser.get('updatedAt').toISOString(),
       };
 
       res.json(user);
@@ -401,25 +340,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete Profile Picture
   app.delete("/api/auth/profile-picture", requireAuth, async (req: any, res) => {
     try {
-      await back4AppRequest("/users/me", {
-        method: "PUT",
-        body: JSON.stringify({
-          profilePicture: null
-        }),
-      }, req.sessionToken);
-
-      // Fetch updated user data
-      const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+      req.currentUser.unset('profilePicture');
+      await req.currentUser.save(null, { useMasterKey: true });
 
       const user = {
-        objectId: updatedUser.objectId,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        role: updatedUser.role || 'user',
-        emailVerified: updatedUser.emailVerified || false,
-        profilePicture: updatedUser.profilePicture,
-        createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt,
+        objectId: req.currentUser.id,
+        username: req.currentUser.get('username'),
+        email: req.currentUser.get('email'),
+        role: req.currentUser.get('role') || 'user',
+        emailVerified: req.currentUser.get('emailVerified') || false,
+        profilePicture: req.currentUser.get('profilePicture'),
+        createdAt: req.currentUser.get('createdAt').toISOString(),
+        updatedAt: req.currentUser.get('updatedAt').toISOString(),
       };
 
       res.json(user);
@@ -439,34 +371,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Cannot change your own role" });
       }
 
-      // Update user role in Back4App using master key
-      const updateResult = await back4AppRequest(`/users/${userId}`, {
-        method: "PUT",
-        body: JSON.stringify({ role: data.role }),
-        headers: {
-          "X-Parse-Master-Key": process.env.BACK4APP_MASTER_KEY || "",
-        },
-      });
+      // Update user role using Parse SDK
+      const query = new Parse.Query(Parse.User);
+      const user = await query.get(userId, { useMasterKey: true });
+      user.set('role', data.role);
+      await user.save(null, { useMasterKey: true });
 
-      // Fetch updated user
-      const updatedUser = await back4AppRequest(`/users/${userId}`, {
-        headers: {
-          "X-Parse-Master-Key": process.env.BACK4APP_MASTER_KEY || "",
-        },
-      });
-
-      const user = {
-        objectId: updatedUser.objectId,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        role: updatedUser.role || 'user',
-        emailVerified: updatedUser.emailVerified || false,
-        profilePicture: updatedUser.profilePicture,
-        createdAt: updatedUser.createdAt,
-        updatedAt: updatedUser.updatedAt,
+      const userData = {
+        objectId: user.id,
+        username: user.get('username'),
+        email: user.get('email'),
+        role: user.get('role') || 'user',
+        emailVerified: user.get('emailVerified') || false,
+        profilePicture: user.get('profilePicture'),
+        createdAt: user.get('createdAt').toISOString(),
+        updatedAt: user.get('updatedAt').toISOString(),
       };
 
-      res.json(user);
+      res.json(userData);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
