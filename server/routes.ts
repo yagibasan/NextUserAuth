@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import multer from "multer";
-import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema, updateRoleSchema } from "@shared/schema";
+import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema, updateRoleSchema, type ActivityType } from "@shared/schema";
 
 const BACK4APP_APP_ID = process.env.BACK4APP_APPLICATION_ID;
 const BACK4APP_REST_KEY = process.env.BACK4APP_REST_API_KEY;
@@ -71,6 +71,33 @@ async function requireAdmin(req: any, res: any, next: any) {
     next();
   } catch (error: any) {
     res.status(401).json({ error: error.message });
+  }
+}
+
+// Helper function to log user activity
+async function logActivity(
+  userId: string,
+  username: string,
+  activityType: ActivityType,
+  ipAddress?: string,
+  userAgent?: string,
+  metadata?: Record<string, any>
+) {
+  try {
+    await back4AppRequest("/classes/ActivityLog", {
+      method: "POST",
+      body: JSON.stringify({
+        userId,
+        username,
+        activityType,
+        ipAddress,
+        userAgent,
+        metadata,
+      }),
+    });
+  } catch (error) {
+    // Log activity errors but don't fail the main request
+    console.error("Failed to log activity:", error);
   }
 }
 

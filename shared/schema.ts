@@ -100,3 +100,36 @@ export interface UsersListResponse {
   results: User[];
   count?: number;
 }
+
+// Activity Log Schema
+export const activityTypeSchema = z.enum([
+  'login',
+  'logout',
+  'signup',
+  'profile_update',
+  'password_change',
+  'profile_picture_upload',
+  'profile_picture_delete',
+  'role_change',
+  'account_delete',
+]);
+
+export type ActivityType = z.infer<typeof activityTypeSchema>;
+
+export const activityLogSchema = z.object({
+  objectId: z.string(),
+  userId: z.string(),
+  username: z.string().optional(),
+  activityType: activityTypeSchema,
+  ipAddress: z.string().optional(),
+  userAgent: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  createdAt: z.string(),
+});
+
+export type ActivityLog = z.infer<typeof activityLogSchema>;
+
+export interface ActivityLogsResponse {
+  results: ActivityLog[];
+  count?: number;
+}
