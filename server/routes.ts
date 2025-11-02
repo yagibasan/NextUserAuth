@@ -108,15 +108,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = signupSchema.parse(req.body);
       
-      // Create new Parse.User with master key (required for server-side signup)
+      // Create new Parse.User
       const parseUser = new Parse.User();
       parseUser.set('username', data.username);
       parseUser.set('email', data.email);
       parseUser.set('password', data.password);
-      parseUser.set('role', 'user'); // Force user role for all new signups
       
-      // Sign up the user with master key
-      await parseUser.signUp(null, { useMasterKey: true });
+      // Sign up the user (this doesn't require master key)
+      await parseUser.signUp();
+      
+      // Set role to 'user' after signup using master key
+      parseUser.set('role', 'user');
+      await parseUser.save(null, { useMasterKey: true });
 
       const user = {
         objectId: parseUser.id,
