@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import multer from "multer";
-import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema } from "@shared/schema";
+import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema, updateRoleSchema } from "@shared/schema";
 
 const BACK4APP_APP_ID = process.env.BACK4APP_APPLICATION_ID;
 const BACK4APP_REST_KEY = process.env.BACK4APP_REST_API_KEY;
@@ -383,6 +383,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch updated user data
       const updatedUser = await back4AppRequest("/users/me", {}, req.sessionToken);
+
+      const user = {
+        objectId: updatedUser.objectId,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role || 'user',
+        emailVerified: updatedUser.emailVerified || false,
+        profilePicture: updatedUser.profilePicture,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
+      };
+
+      res.json(user);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Update User Role (Admin Only)
+  app.put("/api/users/:userId/role", requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const data = updateRoleSchema.parse(req.body);
+
+      // Security: Prevent admins from changing their own role
+      if (userId === req.user.objectId) {
+        return res.status(403).json({ error: "Cannot change your own role" });
+      }
+
+      // Update user role in Back4App using master key
+      const updateResult = await back4AppRequest(`/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify({ role: data.role }),
+        headers: {
+          "X-Parse-Master-Key": process.env.BACK4APP_MASTER_KEY || "",
+        },
+      });
+
+      // Fetch updated user
+      const updatedUser = await back4AppRequest(`/users/${userId}`, {
+        headers: {
+          "X-Parse-Master-Key": process.env.BACK4APP_MASTER_KEY || "",
+        },
+      });
 
       const user = {
         objectId: updatedUser.objectId,

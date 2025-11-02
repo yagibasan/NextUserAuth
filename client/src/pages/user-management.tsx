@@ -6,6 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -28,12 +35,26 @@ import type { User } from "@shared/schema";
 
 interface UserManagementProps {
   users: User[];
+  currentUser?: User;
   onDeleteUser: (userId: string) => Promise<void>;
+  onUpdateRole?: (userId: string, role: 'user' | 'admin') => Promise<void>;
   isLoading?: boolean;
 }
 
-export default function UserManagement({ users, onDeleteUser, isLoading = false }: UserManagementProps) {
+export default function UserManagement({ users, currentUser, onDeleteUser, onUpdateRole, isLoading = false }: UserManagementProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [updatingRole, setUpdatingRole] = useState<string | null>(null);
+
+  const handleRoleChange = async (userId: string, newRole: 'user' | 'admin') => {
+    if (!onUpdateRole) return;
+    
+    setUpdatingRole(userId);
+    try {
+      await onUpdateRole(userId, newRole);
+    } finally {
+      setUpdatingRole(null);
+    }
+  };
 
   const filteredUsers = users.filter(
     (user) =>
@@ -153,9 +174,25 @@ export default function UserManagement({ users, onDeleteUser, isLoading = false 
                     </TableCell>
                     <TableCell className="text-muted-foreground">{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' ? 'Admin' : 'User'}
-                      </Badge>
+                      {currentUser && user.objectId === currentUser.objectId ? (
+                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                          {user.role === 'admin' ? 'Admin' : 'User'}
+                        </Badge>
+                      ) : (
+                        <Select
+                          value={user.role}
+                          onValueChange={(value) => handleRoleChange(user.objectId, value as 'user' | 'admin')}
+                          disabled={updatingRole === user.objectId || !onUpdateRole}
+                        >
+                          <SelectTrigger className="w-[120px]" data-testid={`select-role-${user.objectId}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="user">User</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={user.emailVerified ? 'default' : 'outline'}>
@@ -228,13 +265,35 @@ export default function UserManagement({ users, onDeleteUser, isLoading = false 
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                    {user.role === 'admin' ? 'Admin' : 'User'}
-                  </Badge>
-                  <Badge variant={user.emailVerified ? 'default' : 'outline'}>
-                    {user.emailVerified ? 'Verified' : 'Unverified'}
-                  </Badge>
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground min-w-[60px]">Role:</span>
+                    {currentUser && user.objectId === currentUser.objectId ? (
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                        {user.role === 'admin' ? 'Admin' : 'User'}
+                      </Badge>
+                    ) : (
+                      <Select
+                        value={user.role}
+                        onValueChange={(value) => handleRoleChange(user.objectId, value as 'user' | 'admin')}
+                        disabled={updatingRole === user.objectId || !onUpdateRole}
+                      >
+                        <SelectTrigger className="w-[120px]" data-testid={`select-role-mobile-${user.objectId}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground min-w-[60px]">Status:</span>
+                    <Badge variant={user.emailVerified ? 'default' : 'outline'}>
+                      {user.emailVerified ? 'Verified' : 'Unverified'}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">

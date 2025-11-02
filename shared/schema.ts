@@ -1,5 +1,34 @@
 import { z } from "zod";
 
+// Permissions System
+export const permissionSchema = z.enum([
+  'view_dashboard',
+  'manage_profile',
+  'view_users',
+  'manage_users',
+  'delete_users',
+  'manage_roles',
+  'view_logs',
+  'manage_settings',
+]);
+
+export type Permission = z.infer<typeof permissionSchema>;
+
+// Role to Permissions Mapping
+export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
+  user: ['view_dashboard', 'manage_profile'],
+  admin: [
+    'view_dashboard',
+    'manage_profile',
+    'view_users',
+    'manage_users',
+    'delete_users',
+    'manage_roles',
+    'view_logs',
+    'manage_settings',
+  ],
+};
+
 // Back4App User Schema (based on Parse Server User class)
 export const userSchema = z.object({
   objectId: z.string(),
@@ -49,6 +78,12 @@ export const updateUserSchema = z.object({
 });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
+
+export const updateRoleSchema = z.object({
+  role: z.enum(['user', 'admin']),
+});
+
+export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
 
 // API Response Types
 export interface AuthResponse {

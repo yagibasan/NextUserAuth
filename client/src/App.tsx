@@ -286,15 +286,50 @@ function Router() {
 
       // Refresh users list
       setAllUsers(allUsers.filter(u => u.objectId !== userId));
-      
+
       toast({
         title: "User deleted",
-        description: "User has been deleted successfully.",
+        description: "The user has been successfully removed.",
       });
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Delete failed",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleUpdateRole = async (userId: string, role: 'user' | 'admin') => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      const response = await fetch(`/api/users/${userId}/role`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ role }),
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Role update failed');
+      }
+
+      const updatedUser = await response.json();
+
+      // Update users list
+      setAllUsers(allUsers.map(u => u.objectId === userId ? updatedUser : u));
+      
+      toast({
+        title: "Role updated",
+        description: `User role has been updated to ${role}.`,
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Role update failed",
         description: error.message,
       });
     }
@@ -432,7 +467,9 @@ function Router() {
                 <Route path="/admin/users">
                   <UserManagement
                     users={allUsers}
+                    currentUser={user || undefined}
                     onDeleteUser={handleDeleteUser}
+                    onUpdateRole={handleUpdateRole}
                     isLoading={isLoading}
                   />
                 </Route>

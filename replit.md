@@ -18,7 +18,9 @@ Modern authentication platform built with React, Express, and Back4App (Parse Se
 - **Profile Pictures**: Upload, preview, and delete profile pictures (5MB max, image files only)
 - **Admin Dashboard**: Admin-only user management interface
 - **User List**: View all users with search functionality and profile pictures
+- **Role Management**: Admins can change user roles (user/admin) via dropdown
 - **User Deletion**: Admin can delete user accounts
+- **Permission System**: Granular permissions mapped to roles for future extensibility
 
 ### UI/UX
 - **Landing Page**: Beautiful hero section with features showcase
@@ -68,6 +70,7 @@ Required environment variables:
 
 ### User Management (Admin Only)
 - `GET /api/users` - Get all users
+- `PUT /api/users/:userId/role` - Update user role (cannot change own role)
 - `DELETE /api/users/:userId` - Delete user by ID
 
 ## Security Features
@@ -184,6 +187,13 @@ The theme toggle uses localStorage persistence and applies classes to the docume
 - Profile pictures display in sidebar, profile page, and admin user management
 - Secure file upload via Back4App File API
 - Delete functionality for removing profile pictures
+
+### Advanced Role Management
+- Permission-based access control system with granular permissions
+- Admin UI for changing user roles via dropdown in user management table
+- Security: Admins cannot change their own role
+- Role-permission mapping system for future extensibility
+- Server-side role update endpoint with validation
 
 ## Future Enhancements
 
