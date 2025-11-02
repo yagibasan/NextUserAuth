@@ -14,11 +14,11 @@ async function back4AppRequest(
   options: RequestInit = {},
   sessionToken?: string
 ) {
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     "X-Parse-Application-Id": BACK4APP_APP_ID!,
     "X-Parse-REST-API-Key": BACK4APP_REST_KEY!,
     "Content-Type": "application/json",
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   if (sessionToken) {

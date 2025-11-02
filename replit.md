@@ -198,10 +198,10 @@ The theme toggle uses localStorage persistence and applies classes to the docume
 ## Future Enhancements
 
 - Image cropping tool for profile pictures
-- Advanced role management with multiple roles and permissions
 - User activity logs and session history tracking
-- Two-factor authentication (2FA) with TOTP
-- Social login (OAuth) with Google and GitHub
 - Email verification confirmation endpoint
 - Password strength requirements
 - Account lockout after failed attempts
+- Advanced search and filtering in user management
+- Bulk user operations
+- Export user data functionality
