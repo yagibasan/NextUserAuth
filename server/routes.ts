@@ -5,16 +5,21 @@ import multer from "multer";
 import Parse from "parse/node";
 import { signupSchema, loginSchema, passwordResetRequestSchema, updateUserSchema, updateRoleSchema, type ActivityType } from "@shared/schema";
 
-// Initialize Parse SDK
+// Validate required environment variables
+const requiredEnvVars = ['BACK4APP_APPLICATION_ID', 'BACK4APP_JAVASCRIPT_KEY', 'BACK4APP_MASTER_KEY'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    throw new Error(`Missing required environment variable: ${envVar}`);
+  }
+}
+
+// Initialize Parse SDK with JavaScript Key
 Parse.initialize(
   process.env.BACK4APP_APPLICATION_ID!,
-  process.env.BACK4APP_REST_API_KEY!, // This is used as JavaScript Key
-  process.env.BACK4APP_MASTER_KEY
+  process.env.BACK4APP_JAVASCRIPT_KEY!, // JavaScript Key for client operations
+  process.env.BACK4APP_MASTER_KEY        // Master Key for admin operations
 );
 Parse.serverURL = "https://parseapi.back4app.com";
-
-// Enable Parse Server environment (allows server-side operations)
-(Parse as any).CoreManager.set('SERVER_AUTH_TYPE', 'api');
 
 // Middleware to verify authentication
 async function requireAuth(req: any, res: any, next: any) {
