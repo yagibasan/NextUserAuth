@@ -357,28 +357,252 @@ if (!session) {
 
 ## 5. Frontend Analizi
 
-### 5.1 Routing Yapısı
+### 5.1 Routing Yapısı ve Sayfa Detayları
 
-**Public Routes (Unauthenticated):**
-- `/` - Landing page
-- `/login` - Login form
-- `/signup` - Signup form
-- `/forgot-password` - Password reset request
-- `/verify-email` - Email verification instructions
+#### Public Routes (Kimlik Doğrulama Gerektirmeyen)
 
-**Protected Routes (Authenticated):**
-- `/dashboard` - User dashboard
-- `/profile` - Profile management
-- `/admin/users` - Admin user management (admin only)
+**1. Landing Page (`/`)**
+- **Dosya:** `client/src/pages/landing.tsx`
+- **Amaç:** Uygulamayı tanıtan açılış sayfası
+- **Özellikler:**
+  - Hero bölümü (başlık, açıklama, CTA butonları)
+  - Özellik kartları (Security, Email Verification, Role-Based Access)
+  - "Nasıl Çalışır" adım adım rehber
+  - Responsive tasarım
+  - Sticky navigation bar
+- **Bileşenler:** Card, Button, ThemeToggle
+- **CTA:** "Sign Up" ve "Login" butonları
+- **User Flow:** Ziyaretçi → Özellikler → Signup/Login
 
-**Route Protection:**
+**2. Login Page (`/login`)**
+- **Dosya:** `client/src/pages/login.tsx`
+- **Amaç:** Mevcut kullanıcıların sisteme giriş yapması
+- **Form Alanları:**
+  - Username (zorunlu, min 3 karakter)
+  - Password (zorunlu, min 6 karakter, göster/gizle özelliği)
+- **Özellikler:**
+  - React Hook Form + Zod validation
+  - Password visibility toggle
+  - "Forgot password?" linki
+  - "Back to home" linki
+  - Loading state (buton disabled)
+- **Bileşenler:** Card, Input, Button, Label, Eye/EyeOff icons
+- **User Flow:** Username/Password → Validation → API Call → Session Token → Dashboard
+- **Error Handling:** Form errors, API errors
+
+**3. Signup Page (`/signup`)**
+- **Dosya:** `client/src/pages/signup.tsx`
+- **Amaç:** Yeni kullanıcı kaydı oluşturma
+- **Form Alanları:**
+  - Username (zorunlu, min 3 karakter, max 20 karakter)
+  - Email (zorunlu, email formatı)
+  - Password (zorunlu, min 6 karakter, göster/gizle özelliği)
+  - Role: 'user' (hidden, default)
+- **Özellikler:**
+  - Client-side validation (Zod schema)
+  - Password strength indicator (yok - gelecek özellik)
+  - Real-time validation feedback
+  - Loading state
+  - "Already have an account?" linki
+- **Bileşenler:** Card, Input, Button, Label
+- **User Flow:** Form → Validation → API → Auto-login → Verify Email page
+- **Security:** Role field client-side'da 'user' olarak sabitlenmiş
+
+**4. Forgot Password Page (`/forgot-password`)**
+- **Dosya:** `client/src/pages/forgot-password.tsx`
+- **Amaç:** Şifre sıfırlama talebi oluşturma
+- **Form Alanları:**
+  - Email (zorunlu, email formatı)
+- **Özellikler:**
+  - İki state: Form görünümü ve "Email Sent" görünümü
+  - Parse.User.requestPasswordReset() kullanımı
+  - Email gönderim onayı
+  - "Back to login" linki
+- **Bileşenler:** Card, Input, Button, Mail icon
+- **User Flow:** Email → API → Success Message → Kullanıcı emailine reset linki
+- **Backend:** Back4App otomatik email gönderimi
+
+**5. Verify Email Page (`/verify-email`)**
+- **Dosya:** `client/src/pages/verify-email.tsx`
+- **Amaç:** Email doğrulama talimatları gösterme
+- **Özellikler:**
+  - İki state: Unverified ve Verified
+  - User email gösterimi
+  - "Resend verification" butonu (opsiyonel)
+  - "Go to dashboard" butonu (verified durumunda)
+  - Instructional content
+- **Bileşenler:** Card, Button, Mail/CheckCircle2 icons
+- **User Flow:** Signup → Email gönderildi mesajı → Kullanıcı email'den verify eder
+- **Not:** Şu an UI görünümü, backend endpoint henüz implement edilmedi
+
+#### Protected Routes (Kimlik Doğrulama Gerekli)
+
+**6. Dashboard (`/dashboard`)**
+- **Dosya:** `client/src/pages/dashboard.tsx`
+- **Amaç:** Kullanıcının ana kontrol paneli
+- **Auth Required:** Yes (requireAuth middleware)
+- **Sections:**
+  1. **Welcome Section**
+     - Kullanıcı adı ile karşılama
+     - "Welcome back, {username}"
+  
+  2. **Account Overview Card**
+     - Email gösterimi
+     - Role badge (User/Admin)
+     - Account status (Verified/Unverified)
+     - Member since tarihi
+  
+  3. **Admin Stats (Admin kullanıcılar için)**
+     - Total Users count
+     - Active Users count (email verified)
+     - Admin Users count
+     - Trend indicators
+- **Özellikler:**
+  - Conditional rendering (admin vs user)
+  - Real-time stats (TanStack Query)
+  - Responsive grid layout
+  - Icon-based statistics
+- **Bileşenler:** Card, Badge, Icons (Shield, Users, UserCheck, Activity)
+- **Data Source:** `/api/auth/me` ve `/api/users` (admin)
+
+**7. Profile Page (`/profile`)**
+- **Dosya:** `client/src/pages/profile.tsx`
+- **Amaç:** Kullanıcı profil yönetimi
+- **Auth Required:** Yes
+- **Sections:**
+  1. **Profile Picture**
+     - Avatar görüntüleme (fallback: initials)
+     - Upload butonu
+     - Preview before upload
+     - Delete butonu
+     - 5MB max, image files only
+  
+  2. **Profile Information Card**
+     - Username (editable)
+     - Email (editable)
+     - Password (opsiyonel güncelleme)
+     - Role (read-only badge)
+     - Email verification status
+     - Created at tarihi
+  
+  3. **Actions**
+     - Save changes butonu
+     - Cancel edit butonu
+     - Delete account butonu (destructive)
+- **Özellikler:**
+  - Edit mode toggle
+  - File upload with preview
+  - Form validation
+  - Confirmation dialogs (AlertDialog)
+  - Loading states
+  - Password show/hide toggle
+- **Bileşenler:** Card, Avatar, Input, Button, Badge, AlertDialog, Label
+- **API Endpoints:** 
+  - PUT `/api/auth/me` (profile update)
+  - POST `/api/auth/profile-picture` (upload)
+  - DELETE `/api/auth/profile-picture` (remove)
+  - DELETE `/api/auth/me` (account deletion)
+- **Security:** Role field cannot be updated by user
+
+**8. User Management Page (`/admin/users`) - ADMIN ONLY**
+- **Dosya:** `client/src/pages/user-management.tsx`
+- **Amaç:** Admin tarafından tüm kullanıcıların yönetimi
+- **Auth Required:** Yes + Admin role
+- **Sections:**
+  1. **Stats Cards**
+     - Total users
+     - Verified users
+     - Admin users
+     - Recent signups
+  
+  2. **Search Bar**
+     - Username/email search
+     - Real-time filtering
+  
+  3. **User Table**
+     - Profile picture column
+     - Username
+     - Email
+     - Role dropdown (user/admin)
+     - Email verified status
+     - Created at
+     - Actions (delete button)
+  
+  4. **User Cards (Mobile View)**
+     - Responsive card layout
+     - Same information as table
+- **Özellikler:**
+  - Real-time search
+  - Role management dropdown
+  - Delete user with confirmation
+  - Cannot delete self
+  - Cannot change own role
+  - Loading states
+  - Empty state handling
+- **Bileşenler:** Card, Table, Input, Select, Button, Avatar, Badge, AlertDialog
+- **API Endpoints:**
+  - GET `/api/users` (all users)
+  - PUT `/api/users/:userId/role` (role update)
+  - DELETE `/api/users/:userId` (user deletion)
+- **Security:** 
+  - Server-side admin validation
+  - Self-modification protection
+  - Master key operations
+
+#### Route Protection Strategy
+
 ```typescript
 // In App.tsx
 const isAuthenticated = !!user;
 
-return isAuthenticated 
-  ? authenticatedRoutes 
-  : publicRoutes;
+// Public routes - görünür when not authenticated
+const publicRoutes = (
+  <Switch>
+    <Route path="/" component={Landing} />
+    <Route path="/login" component={Login} />
+    <Route path="/signup" component={Signup} />
+    <Route path="/forgot-password" component={ForgotPassword} />
+    <Route path="/verify-email" component={VerifyEmail} />
+    <Route component={NotFound} />
+  </Switch>
+);
+
+// Protected routes - görünür only when authenticated
+const authenticatedRoutes = (
+  <SidebarProvider>
+    <AppSidebar user={user} onLogout={handleLogout} />
+    <main>
+      <Switch>
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/profile" component={Profile} />
+        
+        {/* Admin-only route */}
+        {user?.role === 'admin' && (
+          <Route path="/admin/users" component={UserManagement} />
+        )}
+        
+        <Route component={NotFound} />
+      </Switch>
+    </main>
+  </SidebarProvider>
+);
+
+return isAuthenticated ? authenticatedRoutes : publicRoutes;
+```
+
+#### Navigation Flow
+
+```
+Unauthenticated User:
+Landing → Signup → Email Verification → Login → Dashboard
+
+Authenticated User:
+Dashboard ↔ Profile ↔ (Admin: User Management)
+  ↓
+Logout → Landing
+
+Admin User:
+Dashboard → User Management → Manage Users → Dashboard
 ```
 
 ### 5.2 State Management
