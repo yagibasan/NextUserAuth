@@ -53,8 +53,8 @@ Modern authentication platform built with React, Express, and Back4App (Parse Se
 
 Required environment variables:
 - `BACK4APP_APPLICATION_ID`: Your Back4App Application ID
-- `BACK4APP_REST_API_KEY`: Your Back4App REST API Key
-- `BACK4APP_MASTER_KEY`: Master key for admin operations (role management, user deletion)
+- `BACK4APP_JAVASCRIPT_KEY`: Your Back4App JavaScript Key (for Parse SDK client operations)
+- `BACK4APP_MASTER_KEY`: Master key for admin operations (role management, user deletion, session revocation)
 
 ## API Endpoints
 

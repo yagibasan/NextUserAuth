@@ -184,7 +184,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Logout
   app.post("/api/auth/logout", requireAuth, async (req: any, res) => {
     try {
-      await Parse.User.logOut();
+      // Find and destroy the current session to revoke the token
+      const query = new Parse.Query(Parse.Session);
+      query.equalTo('sessionToken', req.sessionToken);
+      const session = await query.first({ useMasterKey: true });
+      
+      if (!session) {
+        return res.status(401).json({ error: "Invalid or expired session" });
+      }
+      
+      await session.destroy({ useMasterKey: true });
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -280,7 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const query = new Parse.Query(Parse.User);
       const results = await query.find({ useMasterKey: true });
 
-      const users = results.map((user) => ({
+      const users = results.map((user: Parse.User) => ({
         objectId: user.id,
         username: user.get('username'),
         email: user.get('email'),
